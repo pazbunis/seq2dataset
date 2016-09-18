@@ -12,16 +12,27 @@ Output:
 """
 import sys
 import math
-import numpy
+import numpy as np
 # Input params:
-path_in_positive = 'Enhancers.train.seq'
-path_in_negative = 'NEnhancers.train.seq'
-path_out_X = 'train_X.lines'
-path_out_y = 'train_y.lines'
+path_in_positive = 'Enhancers.join.seq'
+path_in_negative = 'NEnhancers.join.seq'
+
+path_out_train_X = 'train_X'
+path_out_train_y = 'train_y'
+path_out_validation_X = 'validation_X'
+path_out_validation_y = 'validation_y'
+path_out_test_X = 'test_X'
+path_out_test_y = 'test_y'
+
+
+
 target_length = 500
+window_length = 1
+train_ratio = 0.7
+validation_ratio = 0.2
+test_ratio = 1 - train_ratio - validation_ratio
 
-
-def get_middle_subsequence(path_in):
+def get_middle_subsequences(path_in):
     # collect sequences only (w/o the origin)
     lines = [line for line in open(path_in)]
     num_lines = len(lines)
@@ -37,24 +48,62 @@ def get_middle_subsequence(path_in):
     seq_lines_mids = []
     for i in range(0, num_lines):
         l = len(seq_lines[i])
-        start_idx = math.floor((l - target_length) / 2)
-        seq_lines_mids.append(seq_lines[i][start_idx:start_idx + target_length] + '\n')
+        start_idx = math.floor((l - target_length) // 2)
+        for j in range(-window_length//2, window_length//2):
+            seq_lines_mids.append(seq_lines[i][start_idx + j:start_idx + target_length +j])
     return seq_lines_mids
 
-pos_Xs = get_middle_subsequence(path_in_positive)
-neg_Xs = get_middle_subsequence(path_in_negative)
-all_Xs = numpy.array(pos_Xs + neg_Xs)
-all_ys = numpy.array([1] * len(pos_Xs) + [0] * len(neg_Xs))
-perm = numpy.random.permutation(len(all_Xs))
+
+def dna_to_one_hot(seq):
+    """converts a DNA sequence of length N to its one-hot 4xN representation"""
+    num2letter = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
+    letter2num = dict((v, k) for k, v in num2letter.items())
+    num_bases = len(seq)
+    letters = list(seq)
+    idxs = list(map(lambda l: letter2num[l], letters))
+    one_hot = np.zeros((4, num_bases))
+    one_hot[idxs, np.arange(num_bases)] = 1
+    return one_hot
+
+
+def convert_samples_to_one_hot(raw_samples):
+    samples = []
+    for n in range(0, len(raw_samples)):
+        samples.append(dna_to_one_hot(raw_samples[n]))
+    return samples
+
+
+def convert_labels_to_one_hot(raw_labels):
+    labels = []
+    label2one_hot = {0: (1, 0), 1: (0, 1)}
+    for n in range(0, len(raw_labels)):
+        labels.append(label2one_hot[raw_labels[n]])
+    return labels
+
+pos_Xs = get_middle_subsequences(path_in_positive)
+neg_Xs = get_middle_subsequences(path_in_negative)
+all_Xs = np.array(pos_Xs + neg_Xs)
+all_ys = np.array([1] * len(pos_Xs) + [0] * len(neg_Xs))
+perm = np.random.permutation(len(all_Xs))
 all_Xs_shuffled = all_Xs[perm]
 all_ys_shuffled = all_ys[perm]
+samples = np.array(convert_samples_to_one_hot(all_Xs_shuffled))
+labels = np.array(convert_labels_to_one_hot(all_ys_shuffled))
 
+train_start_idx = 0
+train_end_idx = math.ceil(len(all_Xs)*train_ratio)
+validation_start_idx = train_end_idx
+validation_end_idx = train_end_idx + math.ceil(len(all_Xs)*validation_ratio)
+test_start_idx = validation_end_idx
+test_end_idx = validation_end_idx + math.ceil(len(all_Xs)*test_ratio)
 
-# write outputs
-with open(path_out_X, 'w') as f:
-    for line in all_Xs_shuffled:
-        f.write(line)
+print(train_start_idx, train_end_idx, validation_start_idx , validation_end_idx, test_start_idx , test_end_idx )
 
-with open(path_out_y, 'w') as f:
-    for line in all_ys_shuffled:
-        f.write(str(line) + '\n')
+np.save(path_out_train_X, samples[train_start_idx : train_end_idx])
+np.save(path_out_train_y, labels[train_start_idx : train_end_idx])
+
+np.save(path_out_validation_X, samples[validation_start_idx : validation_end_idx])
+np.save(path_out_validation_y, labels[validation_start_idx : validation_end_idx])
+
+np.save(path_out_test_X, samples[test_start_idx : test_end_idx])
+np.save(path_out_test_y, labels[test_start_idx : test_end_idx])
