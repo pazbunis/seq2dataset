@@ -13,23 +13,24 @@ Output:
 import sys
 import math
 import numpy as np
+from structural_data import get_structural_params
+import matplotlib.pyplot as plt
+
 # Input params:
 path_in_positive = 'Enhancers.join.seq'
 path_in_negative = 'NEnhancers.join.seq'
 
-path_out_train_X = 'train_X'
-path_out_train_y = 'train_y'
-path_out_validation_X = 'validation_X'
-path_out_validation_y = 'validation_y'
-path_out_test_X = 'test_X'
-path_out_test_y = 'test_y'
-
-
+path_out_train_X = 'train_struct_X'
+path_out_train_y = 'train_struct_y'
+path_out_validation_X = 'validation_struct_X'
+path_out_validation_y = 'validation_struct_y'
+path_out_test_X = 'test_struct_X'
+path_out_test_y = 'test_struct_y'
 
 target_length = 500
 window_length = 1
-train_ratio = 0.7
-validation_ratio = 0.2
+train_ratio = 0.9
+validation_ratio = 0
 test_ratio = 1 - train_ratio - validation_ratio
 
 def get_middle_subsequences(path_in):
@@ -69,7 +70,14 @@ def dna_to_one_hot(seq):
 def convert_samples_to_one_hot(raw_samples):
     samples = []
     for n in range(0, len(raw_samples)):
-        samples.append(dna_to_one_hot(raw_samples[n]))
+        one_hot = dna_to_one_hot(raw_samples[n])
+        # normalizing the one-hot section:
+        # one_hot_mean = one_hot - one_hot.mean(axis=1).reshape([4, -1])
+        # one_hot_std = one_hot.std(axis=1).reshape([4, -1])
+        # one_hot = one_hot_mean / one_hot_std
+        structural_params = get_structural_params(raw_samples[n])
+        concat = np.concatenate([one_hot, structural_params], axis=0)
+        samples.append(concat)
     return samples
 
 
@@ -80,10 +88,16 @@ def convert_labels_to_one_hot(raw_labels):
         labels.append(label2one_hot[raw_labels[n]])
     return labels
 
+
+def reverse_sample(seqs):
+    return [seq[::-1] for seq in seqs]
+
 pos_Xs = get_middle_subsequences(path_in_positive)
 neg_Xs = get_middle_subsequences(path_in_negative)
-all_Xs = np.array(pos_Xs + neg_Xs)
-all_ys = np.array([1] * len(pos_Xs) + [0] * len(neg_Xs))
+pos_Xs_reverse = [seq[::-1] for seq in pos_Xs]
+neg_Xs_reverse = [seq[::-1] for seq in neg_Xs]
+all_Xs = np.array(pos_Xs + pos_Xs_reverse + neg_Xs + neg_Xs_reverse)
+all_ys = np.array([1] * len(pos_Xs) * 2 + [0] * len(neg_Xs) * 2)  # x2 for reverse seqs
 perm = np.random.permutation(len(all_Xs))
 all_Xs_shuffled = all_Xs[perm]
 all_ys_shuffled = all_ys[perm]
@@ -97,7 +111,7 @@ validation_end_idx = train_end_idx + math.ceil(len(all_Xs)*validation_ratio)
 test_start_idx = validation_end_idx
 test_end_idx = validation_end_idx + math.ceil(len(all_Xs)*test_ratio)
 
-print(train_start_idx, train_end_idx, validation_start_idx , validation_end_idx, test_start_idx , test_end_idx )
+print(train_start_idx, train_end_idx, validation_start_idx , validation_end_idx, test_start_idx, test_end_idx)
 
 np.save(path_out_train_X, samples[train_start_idx : train_end_idx])
 np.save(path_out_train_y, labels[train_start_idx : train_end_idx])
