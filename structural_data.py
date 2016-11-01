@@ -28,6 +28,7 @@ for n in range(0, len(ProT)):
 
 def get_structural_params(seq):
     '''slides a 5bp window and generates a structure vector for the given sequence (uses 'A'-padding at start\end)'''
+    seq = seq.upper()
     window_size = 5
     pad_size = floor(window_size / 2.)
     lst = list(seq)
@@ -40,6 +41,7 @@ def get_structural_params(seq):
         structure_vec.append(pentamer_lu[pentamer])
 
     arr = np.array(structure_vec).transpose()
+    # if len(arr) == 0:
     return arr
 
 
