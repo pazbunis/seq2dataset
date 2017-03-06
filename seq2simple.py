@@ -1,4 +1,9 @@
 __author__ = 'pazbu'
+import sys
+import math
+import numpy as np
+from seqsample import SeqSample
+from itertools import groupby
 """
 Input:
     path_in_positive: '.seq' file with "positive" dna sequences and their location
@@ -10,50 +15,32 @@ Input:
 Output:
     A dataset to be used for training or testing a machine learning model
 """
-import sys
-import math
-import numpy as np
-from structural_data import get_structural_params
-import matplotlib.pyplot as plt
 
 # Input params:
-path_in_positive = 'CNNvsMOTIF/input/Enhancers.seq'
-path_in_negative = 'CNNvsMOTIF/input/NEnhancers.seq'
-
-path_out_train_X = 'CNNvsMOTIF/output/CNNvsMOTIF.train.X'
-path_out_train_y = 'CNNvsMOTIF/output/CNNvsMOTIF.train.y'
-path_out_validation_X = 'CNNvsMOTIF/output/CNNvsMOTIF.validation.X'
-path_out_validation_y = 'CNNvsMOTIF/output/CNNvsMOTIF.validation.y'
-path_out_test_X = 'CNNvsMOTIF/output/CNNvsMOTIF.test.X'
-path_out_test_y = 'CNNvsMOTIF/output/CNNvsMOTIF.test.y'
+path_in_positive = 'CNNvsMOTIF/input/Enhancers.newline.seq'
+path_in_negative = 'CNNvsMOTIF/input/NEnhancers.newline.seq'
+path_out = 'CNNvsMOTIF/output/dataset.8KPos.27KNeg'
 
 target_length = 500
-window_length = 1
-train_ratio = 0.8
-validation_ratio = 0
-test_ratio = 1 - train_ratio - validation_ratio
+
+def fastaread(fasta_name):
+    f = open(fasta_name)
+    faiter = (x[1] for x in groupby(f, lambda line: line.startswith(">")))
+    for header in faiter:
+        header = next(header)[1:].strip()
+        seq = "".join(s.strip() for s in next(faiter))
+        yield header, seq
 
 
-def get_middle_subsequences(path_in):
-    # collect sequences only (w/o the origin)
-    lines = [line for line in open(path_in)]
-    num_lines = len(lines)
-    seq_lines = [lines[i].split('\t')[1] for i in range(0, num_lines)]
-
-    # find shortest sequence length
-    shortest_length = min([len(seq_lines[i]) for i in range(0, num_lines)])
-    if shortest_length < target_length:
-        sys.stderr.write('target sequence length is longer than the shortest sequence in the file.')
-        exit(1)
-
-    # extract the middle target_length characters (left-aligned in case of ties)
-    seq_lines_mids = []
-    for i in range(0, num_lines):
-        l = len(seq_lines[i])
+def middle_subseqs(path_in):
+    faiter = fastaread(path_in)
+    for header, seq in faiter:
+        l = len(seq)
+        if l < target_length:
+            sys.stderr.write('target sequence length is longer than a sequence in the file.')
+            exit(1)
         start_idx = math.floor((l - target_length) // 2)
-        for j in range(-window_length//2, window_length//2):
-            seq_lines_mids.append(seq_lines[i][start_idx + j:start_idx + target_length +j])
-    return seq_lines_mids
+        yield header, seq[start_idx:start_idx + target_length]
 
 
 def dna_to_one_hot(seq):
@@ -69,20 +56,14 @@ def dna_to_one_hot(seq):
     return one_hot
 
 
-def convert_samples_to_one_hot(raw_samples):
-    samples = []
-    for n in range(0, len(raw_samples)):
-        # one_hot = dna_to_one_hot(raw_samples[n])
-        # structural_params = get_structural_params(raw_samples[n])
-        # try:
-        #     concat = np.concatenate([one_hot, structural_params], axis=0)
-        # except:
-        #     print(n)
-        #     print(raw_samples[n])
-        #
-        # samples.append(concat)
-        samples.append(dna_to_one_hot(raw_samples[n]))
-    return samples
+# def convert_samples_to_one_hot(raw_samples):
+#     samples = []
+#     for n in range(0, len(raw_samples)):
+#         one_hot = dna_to_one_hot(raw_samples[n])
+#         if np.shape(one_hot) != (4, target_length):
+#             print(raw_samples[n])
+#         samples.append(one_hot)
+#     return samples
 
 
 def convert_labels_to_one_hot(raw_labels):
@@ -96,38 +77,14 @@ def convert_labels_to_one_hot(raw_labels):
 def reverse_sample(seqs):
     return [seq[::-1] for seq in seqs]
 
-pos_Xs = get_middle_subsequences(path_in_positive)
-neg_Xs = get_middle_subsequences(path_in_negative)
-all_Xs = np.array(pos_Xs  + neg_Xs )
-all_ys = np.array([1] * len(pos_Xs)  + [0] * len(neg_Xs))
-perm = np.random.permutation(len(all_Xs))
-all_Xs_shuffled = all_Xs[perm]
-all_ys_shuffled = all_ys[perm]
-samples = np.array(convert_samples_to_one_hot(all_Xs_shuffled))
-labels = np.array(convert_labels_to_one_hot(all_ys_shuffled))
 
-train_start_idx = 0
-train_end_idx = math.ceil(len(all_Xs)*train_ratio)
-validation_start_idx = train_end_idx
-validation_end_idx = train_end_idx + math.ceil(len(all_Xs)*validation_ratio)
-test_start_idx = validation_end_idx
-test_end_idx = validation_end_idx + math.ceil(len(all_Xs)*test_ratio)
+samples = []
+for header, seq in middle_subseqs(path_in_positive):
+    onehot = dna_to_one_hot(seq)
+    samples.append(SeqSample(seq, onehot, header, 'ENHANCER'))
 
-print(train_start_idx, train_end_idx, validation_start_idx, validation_end_idx, test_start_idx, test_end_idx)
+for header, seq in middle_subseqs(path_in_negative):
+    onehot = dna_to_one_hot(seq)
+    samples.append(SeqSample(seq, onehot, header, 'BACKGROUND'))
 
-np.save(path_out_train_X, samples[train_start_idx : train_end_idx])
-np.save(path_out_train_y, labels[train_start_idx : train_end_idx])
-
-np.save(path_out_validation_X, samples[validation_start_idx : validation_end_idx])
-np.save(path_out_validation_y, labels[validation_start_idx : validation_end_idx])
-
-np.save(path_out_test_X, samples[test_start_idx : test_end_idx])
-np.save(path_out_test_y, labels[test_start_idx : test_end_idx])
-
-test_pos_file = open('CNNvsMOTIF/output/test.pos', 'w')
-test_neg_file = open('CNNvsMOTIF/output/test.neg', 'w')
-for n in range(test_start_idx, test_end_idx-1):
-    if all_ys_shuffled[n] == 1:
-        test_pos_file.write("%s\n" % all_Xs_shuffled[n])
-    else:
-        test_neg_file.write("%s\n" % all_Xs_shuffled[n])
+np.save(path_out, samples)
