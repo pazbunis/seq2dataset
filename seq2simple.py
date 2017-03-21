@@ -1,9 +1,9 @@
-__author__ = 'pazbu'
 import sys
 import math
 import numpy as np
 from seqsample import SeqSample
 from itertools import groupby
+__author__ = 'pazbu'
 """
 Input:
     path_in_positive: '.seq' file with "positive" dna sequences and their location
@@ -19,9 +19,9 @@ Output:
 # Input params:
 path_in_positive = 'CNNvsMOTIF/input/Enhancers.newline.seq'
 path_in_negative = 'CNNvsMOTIF/input/NEnhancers.newline.seq'
-path_out = 'CNNvsMOTIF/output/dataset.8KPos.27KNeg'
-
+path_out = 'CNNvsMOTIF/output/dataset.8KPos.27KNeg.npy'
 target_length = 500
+
 
 def fastaread(fasta_name):
     f = open(fasta_name)
@@ -33,14 +33,38 @@ def fastaread(fasta_name):
 
 
 def middle_subseqs(path_in):
+    """
+    :param path_in:
+    :return: the middle target_length letters from the sequences in the input file
+    """
     faiter = fastaread(path_in)
     for header, seq in faiter:
         l = len(seq)
+        seq = seq.upper()
         if l < target_length:
-            sys.stderr.write('target sequence length is longer than a sequence in the file.')
-            exit(1)
-        start_idx = math.floor((l - target_length) // 2)
-        yield header, seq[start_idx:start_idx + target_length]
+            sys.stderr.write('target sequence length is longer than a sequence in the file.\n')
+            # exit(1)
+        else:
+            start_idx = math.floor((l - target_length) // 2)
+            yield header, seq[start_idx:start_idx + target_length]
+
+
+def all_subseqs(path_in):
+    """
+    :param path_in:
+    :return: all disjoint segments of length target_length from the sequences in the input file
+    """
+    faiter = fastaread(path_in)
+    for header, seq in faiter:
+        l = len(seq)
+        seq = seq.upper()
+        if l < target_length:
+            sys.stderr.write('target sequence length is longer than a sequence in the file.\n')
+            # exit(1)
+        else:
+            for start_idx in range(0, l, target_length):
+                if start_idx + target_length <= l:
+                    yield header, seq[start_idx:start_idx + target_length]
 
 
 def dna_to_one_hot(seq):
@@ -48,43 +72,33 @@ def dna_to_one_hot(seq):
     seq = seq.upper()
     num2letter = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
     letter2num = dict((v, k) for k, v in num2letter.items())
+    letter2num['N'] = 0
     num_bases = len(seq)
     letters = list(seq)
     idxs = list(map(lambda l: letter2num[l], letters))
-    one_hot = np.zeros((4, num_bases))
+    one_hot = np.zeros((4, num_bases), dtype=np.bool)
     one_hot[idxs, np.arange(num_bases)] = 1
     return one_hot
-
-
-# def convert_samples_to_one_hot(raw_samples):
-#     samples = []
-#     for n in range(0, len(raw_samples)):
-#         one_hot = dna_to_one_hot(raw_samples[n])
-#         if np.shape(one_hot) != (4, target_length):
-#             print(raw_samples[n])
-#         samples.append(one_hot)
-#     return samples
-
-
-def convert_labels_to_one_hot(raw_labels):
-    labels = []
-    label2one_hot = {0: (1, 0), 1: (0, 1)}
-    for n in range(0, len(raw_labels)):
-        labels.append(label2one_hot[raw_labels[n]])
-    return labels
 
 
 def reverse_sample(seqs):
     return [seq[::-1] for seq in seqs]
 
-
+print('converting positives...')
 samples = []
+c = 0
 for header, seq in middle_subseqs(path_in_positive):
-    onehot = dna_to_one_hot(seq)
-    samples.append(SeqSample(seq, onehot, header, 'ENHANCER'))
+    samples.append(SeqSample(seq, header, 'ENHANCER'))
+    if c % 1000 == 0:
+        print(c)
+    c += 1
 
-for header, seq in middle_subseqs(path_in_negative):
-    onehot = dna_to_one_hot(seq)
-    samples.append(SeqSample(seq, onehot, header, 'BACKGROUND'))
-
+print('converting negatives...')
+c = 0
+for header, seq in all_subseqs(path_in_negative):
+    samples.append(SeqSample(seq, header, 'BACKGROUND'))
+    if c % 1000 == 0:
+        print(c)
+    c += 1
+print('saving...')
 np.save(path_out, samples)
