@@ -81,8 +81,8 @@ def dna_to_one_hot(seq):
     return one_hot
 
 
-def reverse_sample(seqs):
-    return [seq[::-1] for seq in seqs]
+# def reverse_sample(seqs):
+#     return [seq[::-1] for seq in seqs]
 
 print('converting positives...')
 samples = []

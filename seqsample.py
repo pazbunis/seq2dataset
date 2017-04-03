@@ -29,18 +29,3 @@ class SeqSample:
         res = np.array([1, 2]).dot(self.two_bit)
         out = np.eye(4, dtype=np.bool)[res]
         return out.transpose()
-
-#
-# class SeqDataSet:
-#     def __init__(self, seqSamples):
-#         self.raw_twobit = np.vstack(map(lambda s: s.two_bit, seqSamples))
-#         # self.headers = []
-#         # self.labels = []
-#         # for seqSample in seqSamples:
-#         #     self.headers.append(seqSample.header)
-#         #     self.labels.append(seqSample.label)
-#
-#     def at(self, i):
-#         s = self.seqSamples[i]
-#         s.two_bit = self.raw_twobit[2*i:2*i+1, :]
-#         return s
