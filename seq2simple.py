@@ -17,9 +17,9 @@ Output:
 """
 
 # Input params:
-path_in_positive = 'CNNvsMOTIF/input/Enhancers.newline.seq'
-path_in_negative = 'CNNvsMOTIF/input/NEnhancers.newline.seq'
-path_out = 'CNNvsMOTIF/output/dataset.8KPos.27KNeg.npy'
+path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/cells/cerebellum.enhancers.fasta'
+path_in_negative = '/cs/grad/pazbu/paz/dev/projects/seq2dataset/CNNvsMOTIF/input/NEnhancers.newline.seq'
+path_out = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/cerebellum/cerebellum.vs.not'
 target_length = 500
 
 
@@ -97,8 +97,10 @@ print('converting negatives...')
 c = 0
 for header, seq in all_subseqs(path_in_negative):
     samples.append(SeqSample(seq, header, 'BACKGROUND'))
+    if c > 30000:
+        break
     if c % 1000 == 0:
         print(c)
     c += 1
-print('saving...')
+
 np.save(path_out, samples)
