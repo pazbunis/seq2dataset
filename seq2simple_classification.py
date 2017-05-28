@@ -4,7 +4,6 @@ import numpy as np
 import random
 from seqsample import SeqSample
 from itertools import groupby
-import xgboost as xgb
 __author__ = 'pazbu'
 """
 Input:
@@ -104,6 +103,7 @@ for header, seq in all_subseqs(path_in_negative):
     if c % 1000 == 0:
         print(c)
     c += 1
+
 
 # take only 500k negative samples:
 random.shuffle(neg_samples)
