@@ -1,8 +1,10 @@
 import sys
 import math
 import numpy as np
+import random
 from seqsample import SeqSample
 from itertools import groupby
+import xgboost as xgb
 __author__ = 'pazbu'
 """
 Input:
@@ -17,9 +19,9 @@ Output:
 """
 
 # Input params:
-path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/cells/cerebellum.enhancers.fasta'
-path_in_negative = '/cs/grad/pazbu/paz/dev/projects/seq2dataset/CNNvsMOTIF/input/NEnhancers.newline.seq'
-path_out = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/cerebellum/cerebellum.vs.not'
+path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/all_enhancers.fasta'
+path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/NEnhancers.tfa'
+path_out = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/ds.170KP.500KN.shuffled.npy'
 target_length = 500
 
 
@@ -95,12 +97,19 @@ for header, seq in middle_subseqs(path_in_positive):
 
 print('converting negatives...')
 c = 0
+
+neg_samples = []
 for header, seq in all_subseqs(path_in_negative):
-    samples.append(SeqSample(seq, header, 'BACKGROUND'))
-    if c > 30000:
-        break
+    neg_samples.append(SeqSample(seq, header, 'BACKGROUND'))
     if c % 1000 == 0:
         print(c)
     c += 1
 
+# take only 500k negative samples:
+random.shuffle(neg_samples)
+neg_samples = neg_samples[:500000]
+
+# combine negs and pos, shuffle and save
+samples.extend(neg_samples)
+random.shuffle(samples)
 np.save(path_out, samples)
