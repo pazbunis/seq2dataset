@@ -18,9 +18,9 @@ Output:
 """
 
 # Input params:
-path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/all_enhancers.fasta'
-path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/NEnhancers.tfa'
-path_out = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/ds.170KP.500KN.shuffled.npy'
+path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/56k.enhancers.top50.ptiles.fasta'
+path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/NEnhancers_more_than_15Kb_from_Enhancer_peaks.tfa'
+path_out = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/ds.56KP.ALLNEG.distant.top50.ptiles.npy'
 target_length = 500
 
 
@@ -31,6 +31,19 @@ def fastaread(fasta_name):
         header = next(header)[1:].strip()
         seq = "".join(s.strip() for s in next(faiter))
         yield header, seq
+
+
+def center_header(header, start_offset, length):
+    chrom, location = header.split(':')
+    added_info = ''
+    if '|' in location:
+        location, added_info = location.split('|', 1)
+        added_info = '|' + added_info
+    start, _ = location.split('-')
+    start = int(start) + start_offset
+    end = int(start) + length
+    location = str(start) + '-' + str(end)
+    return chrom + ':' + location + added_info
 
 
 def middle_subseqs(path_in):
@@ -47,6 +60,7 @@ def middle_subseqs(path_in):
             # exit(1)
         else:
             start_idx = math.floor((l - target_length) // 2)
+            header = center_header(header, start_idx, target_length)
             yield header, seq[start_idx:start_idx + target_length]
 
 
@@ -65,6 +79,7 @@ def all_subseqs(path_in):
         else:
             for start_idx in range(0, l, target_length):
                 if start_idx + target_length <= l:
+                    header = center_header(header, start_idx, target_length)
                     yield header, seq[start_idx:start_idx + target_length]
 
 
@@ -107,7 +122,7 @@ for header, seq in all_subseqs(path_in_negative):
 
 # take only 500k negative samples:
 random.shuffle(neg_samples)
-neg_samples = neg_samples[:500000]
+# neg_samples = neg_samples[:56000]
 
 # combine negs and pos, shuffle and save
 samples.extend(neg_samples)
