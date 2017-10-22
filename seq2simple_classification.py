@@ -1,6 +1,7 @@
-import sys
 import math
+import os
 import numpy as np
+from dnautils import rev_comp
 import random
 from seqsample import SeqSample
 from itertools import groupby
@@ -18,10 +19,10 @@ Output:
 """
 
 # Input params:
-path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/56k.enhancers.top50.ptiles.fasta'
-path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/NEnhancers_more_than_15Kb_from_Enhancer_peaks.tfa'
-path_out = '/cs/grad/pazbu/paz/dev/projects/data/enhancers/ds.56KP.ALLNEG.distant.top50.ptiles.npy'
-target_length = 500
+path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.fasta'
+path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/negative.fasta'
+path_out = '/cs/grad/pazbu/proj/data/ENCODE_mm10/dataset/only_positive'
+target_length = 1000
 
 
 def fastaread(fasta_name):
@@ -56,7 +57,8 @@ def middle_subseqs(path_in):
         l = len(seq)
         seq = seq.upper()
         if l < target_length:
-            sys.stderr.write('target sequence length is longer than a sequence in the file.\n')
+            pass
+            #sys.stderr.write('target sequence length is longer than a sequence in the file.\n')
             # exit(1)
         else:
             start_idx = math.floor((l - target_length) // 2)
@@ -74,7 +76,8 @@ def all_subseqs(path_in):
         l = len(seq)
         seq = seq.upper()
         if l < target_length:
-            sys.stderr.write('target sequence length is longer than a sequence in the file.\n')
+            pass
+            #sys.stderr.write('target sequence length is longer than a sequence in the file.\n')
             # exit(1)
         else:
             for start_idx in range(0, l, target_length):
@@ -92,39 +95,117 @@ def dna_to_one_hot(seq):
     num_bases = len(seq)
     letters = list(seq)
     idxs = list(map(lambda l: letter2num[l], letters))
-    one_hot = np.zeros((4, num_bases), dtype=np.bool)
+    one_hot = np.zeros((4, num_bases), dtype=np.uint8)
     one_hot[idxs, np.arange(num_bases)] = 1
     return one_hot
 
 
-# def reverse_sample(seqs):
-#     return [seq[::-1] for seq in seqs]
+def augment(seq):
+    shift = 0
+    pad_char = 'A'
+    while shift == 0:
+        shift = random.randint(-20, 20)
+    if shift < 0:
+        aug_seq = abs(shift) * pad_char + seq[:len(seq) - abs(shift)]
+    else:
+        aug_seq = seq[shift:] + abs(shift) * pad_char
+    return aug_seq
+
 
 print('converting positives...')
 samples = []
+headers = []
 c = 0
 for header, seq in middle_subseqs(path_in_positive):
-    samples.append(SeqSample(seq, header, 'ENHANCER'))
+    samples.append(dna_to_one_hot(seq))
+    headers.append(header)
+
+    rev_comp_seq = rev_comp(seq)
+    samples.append(rev_comp_seq)
+    headers.append(header + ' - revcomp')
+
+    aug_seq = augment(seq)
+    samples.append(aug_seq)
+    headers.append(header + ' - augmented')
+
+    rev_comp_aug_seq = rev_comp(aug_seq)
+    samples.append(rev_comp_aug_seq)
+    headers.append(header + ' - revcomp+augmented')
+
     if c % 1000 == 0:
         print(c)
     c += 1
+
+print('number of positives (incl. rev-comps): ', len(samples))
 
 print('converting negatives...')
 c = 0
 
 neg_samples = []
-for header, seq in all_subseqs(path_in_negative):
-    neg_samples.append(SeqSample(seq, header, 'BACKGROUND'))
-    if c % 1000 == 0:
-        print(c)
-    c += 1
+# # for header, seq in all_subseqs(path_in_negative):
+# for header, seq in middle_subseqs(path_in_negative):
+#     neg_samples.append(dna_to_one_hot(seq))
+#     headers.append(header)
+#     if c % 1000 == 0:
+#         print(c)
+#     c += 1
+#     if c > 55000:
+#         break
+#
+# print('number of negatives: ', len(neg_samples))
 
+##################### MULTI-CLASS #########################
+import pandas as pd
+df = pd.read_csv(filepath_or_buffer='/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.labels.tsv', sep='\t')
+label_mat = df.as_matrix()
+label_mat = label_mat[:, 3:]
+neg_labels = np.zeros((len(neg_samples), 27), dtype=np.uint8)
+labels = np.vstack((label_mat, neg_labels))
 
-# take only 500k negative samples:
-random.shuffle(neg_samples)
-# neg_samples = neg_samples[:56000]
-
-# combine negs and pos, shuffle and save
 samples.extend(neg_samples)
-random.shuffle(samples)
-np.save(path_out, samples)
+samples_stacked = np.stack(samples)
+headers = np.array(headers)
+###########################################################
+
+
+# pos_labels = np.ones((len(samples), 1), dtype=bool)
+# neg_labels = np.zeros((len(neg_samples), 1), dtype=bool)
+# labels = np.vstack((pos_labels, neg_labels))
+# samples.extend(neg_samples)
+# samples_stacked = np.stack(samples)
+# headers = np.array(headers)
+
+# shuffle
+idxs = np.arange(len(samples_stacked))
+perm = np.random.permutation(idxs)
+labels = labels[perm]
+samples_stacked = samples_stacked[perm]
+headers = headers[perm]
+
+# divide
+train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
+
+# compress
+
+# for (idxs, name) in zip((train_index, validation_index, test_index), ('train', 'validation', 'test')):
+#     Xr = np.reshape(samples_stacked[idxs], 4*1000*len(idxs))
+#     Xb = np.packbits(Xr)
+#     np.save('X_bin_' + name, Xb)
+#
+#     Yr = np.reshape(labels[idxs], 27*len(idxs))
+#     Yb = np.packbits(Yr)
+#     np.save('Y_bin_' + name, Yb)
+#
+#     np.save('headers_' + name, headers[idxs])
+
+for (idxs, name) in zip((train_index, validation_index, test_index), ('train', 'validation', 'test')):
+    np.save(os.path.join(path_out, 'X_' + name), samples_stacked[idxs])
+
+    np.save(os.path.join(path_out, 'Y_' + name), labels[idxs])
+
+    np.save(os.path.join(path_out, 'headers_' + name), headers[idxs])
+
+
+print('after save')
+
+# np.save(path_out, samples)

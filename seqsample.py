@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class SeqSample:
     letter2num_lsb = {'A': 0, 'C': 1, 'G': 0, 'T': 1, 'N': 0}
     letter2num_msb = {'A': 0, 'C': 0, 'G': 1, 'T': 1, 'N': 0}
