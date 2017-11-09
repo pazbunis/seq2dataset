@@ -19,9 +19,9 @@ Output:
 """
 
 # Input params:
-path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.fasta'
-path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/negative.fasta'
-path_out = '/cs/grad/pazbu/proj/data/ENCODE_mm10/dataset/only_positive'
+path_in_positive = '/cs/grad/pazbu/dnanet-v3/data/shifts/1000.final.fasta'
+path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/negative_shuffled.fasta'
+path_out = '/cs/grad/pazbu/dnanet-v3/data/shifts'
 target_length = 1000
 
 
@@ -112,58 +112,83 @@ def augment(seq):
     return aug_seq
 
 
+import pandas as pd
+df = pd.read_csv(filepath_or_buffer='/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.labels.tsv', sep='\t')
+label_mat = df.as_matrix()
+label_mat = label_mat[:, 3:]
+
+
 print('converting positives...')
 samples = []
 headers = []
+labels = []
 c = 0
+d = dict()
 for header, seq in middle_subseqs(path_in_positive):
     samples.append(dna_to_one_hot(seq))
     headers.append(header)
+    labels.append(label_mat[c])
 
     rev_comp_seq = rev_comp(seq)
-    samples.append(rev_comp_seq)
+    samples.append(dna_to_one_hot(rev_comp_seq))
     headers.append(header + ' - revcomp')
+    labels.append(label_mat[c])
 
     aug_seq = augment(seq)
-    samples.append(aug_seq)
+    samples.append(dna_to_one_hot(aug_seq))
     headers.append(header + ' - augmented')
+    labels.append(label_mat[c])
 
     rev_comp_aug_seq = rev_comp(aug_seq)
-    samples.append(rev_comp_aug_seq)
+    samples.append(dna_to_one_hot(rev_comp_aug_seq))
     headers.append(header + ' - revcomp+augmented')
+    labels.append(label_mat[c])
 
     if c % 1000 == 0:
         print(c)
     c += 1
+
 
 print('number of positives (incl. rev-comps): ', len(samples))
 
 print('converting negatives...')
 c = 0
 
-neg_samples = []
-# # for header, seq in all_subseqs(path_in_negative):
-# for header, seq in middle_subseqs(path_in_negative):
-#     neg_samples.append(dna_to_one_hot(seq))
-#     headers.append(header)
-#     if c % 1000 == 0:
-#         print(c)
-#     c += 1
-#     if c > 55000:
-#         break
-#
+# neg_samples = []
+# for header, seq in all_subseqs(path_in_negative):
+for header, seq in middle_subseqs(path_in_negative):
+    samples.append(dna_to_one_hot(seq))
+    headers.append(header)
+    labels.append(np.zeros(27))
+
+    rev_comp_seq = rev_comp(seq)
+    samples.append(dna_to_one_hot(rev_comp_seq))
+    headers.append(header + ' - revcomp')
+    labels.append(np.zeros(27))
+
+    aug_seq = augment(seq)
+    samples.append(dna_to_one_hot(aug_seq))
+    headers.append(header + ' - augmented')
+    labels.append(np.zeros(27))
+
+    rev_comp_aug_seq = rev_comp(aug_seq)
+    samples.append(dna_to_one_hot(rev_comp_aug_seq))
+    headers.append(header + ' - revcomp+augmented')
+    labels.append(np.zeros(27))
+    c += 1
+    if c % 1000 == 0:
+        print(c)
+
+    if c > 55000:
+        break
+
 # print('number of negatives: ', len(neg_samples))
 
 ##################### MULTI-CLASS #########################
-import pandas as pd
-df = pd.read_csv(filepath_or_buffer='/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.labels.tsv', sep='\t')
-label_mat = df.as_matrix()
-label_mat = label_mat[:, 3:]
-neg_labels = np.zeros((len(neg_samples), 27), dtype=np.uint8)
-labels = np.vstack((label_mat, neg_labels))
 
-samples.extend(neg_samples)
+# samples.extend(neg_samples)
 samples_stacked = np.stack(samples)
+labels = np.array(labels)
 headers = np.array(headers)
 ###########################################################
 
@@ -176,14 +201,26 @@ headers = np.array(headers)
 # headers = np.array(headers)
 
 # shuffle
-idxs = np.arange(len(samples_stacked))
-perm = np.random.permutation(idxs)
-labels = labels[perm]
-samples_stacked = samples_stacked[perm]
-headers = headers[perm]
+# idxs = np.arange(len(samples_stacked))
+# perm = np.random.permutation(idxs)
+# labels = labels[perm]
+# samples_stacked = samples_stacked[perm]
+# headers = headers[perm]
+#
+# # divide
+# train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
 
-# divide
-train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
+train_index = []
+validation_index = []
+test_index = []
+
+for i, header in enumerate(headers):
+    if 'chr6' in header or 'chr7' in header:
+        validation_index.append(i)
+    elif 'chr8' in header or 'chr9' in header:
+        test_index.append(i)
+    else:
+        train_index.append(i)
 
 # compress
 
@@ -200,11 +237,8 @@ train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), i
 
 for (idxs, name) in zip((train_index, validation_index, test_index), ('train', 'validation', 'test')):
     np.save(os.path.join(path_out, 'X_' + name), samples_stacked[idxs])
-
     np.save(os.path.join(path_out, 'Y_' + name), labels[idxs])
-
     np.save(os.path.join(path_out, 'headers_' + name), headers[idxs])
-
 
 print('after save')
 
