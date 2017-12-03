@@ -3,6 +3,7 @@ import os
 import numpy as np
 from dnautils import rev_comp
 import random
+import dnautils
 from seqsample import SeqSample
 from itertools import groupby
 __author__ = 'pazbu'
@@ -19,9 +20,9 @@ Output:
 """
 
 # Input params:
-path_in_positive = '/cs/grad/pazbu/dnanet-v3/data/shifts/1000.final.fasta'
+path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.fasta'
 path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/negative_shuffled.fasta'
-path_out = '/cs/grad/pazbu/dnanet-v3/data/shifts'
+path_out = '/cs/grad/pazbu/dnanet-v3/data/shifts/test_gt0.5/'
 target_length = 1000
 
 
@@ -183,10 +184,10 @@ for header, seq in middle_subseqs(path_in_negative):
         break
 
 # print('number of negatives: ', len(neg_samples))
-
-##################### MULTI-CLASS #########################
-
-# samples.extend(neg_samples)
+#
+# ##################### MULTI-CLASS #########################
+#
+# # samples.extend(neg_samples)
 samples_stacked = np.stack(samples)
 labels = np.array(labels)
 headers = np.array(headers)
@@ -201,14 +202,14 @@ headers = np.array(headers)
 # headers = np.array(headers)
 
 # shuffle
-# idxs = np.arange(len(samples_stacked))
-# perm = np.random.permutation(idxs)
-# labels = labels[perm]
-# samples_stacked = samples_stacked[perm]
-# headers = headers[perm]
-#
-# # divide
-# train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
+idxs = np.arange(len(samples_stacked))
+perm = np.random.permutation(idxs)
+labels = labels[perm]
+samples_stacked = samples_stacked[perm]
+headers = headers[perm]
+
+# divide
+train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
 
 train_index = []
 validation_index = []
@@ -222,24 +223,25 @@ for i, header in enumerate(headers):
     else:
         train_index.append(i)
 
-# compress
-
-# for (idxs, name) in zip((train_index, validation_index, test_index), ('train', 'validation', 'test')):
-#     Xr = np.reshape(samples_stacked[idxs], 4*1000*len(idxs))
-#     Xb = np.packbits(Xr)
-#     np.save('X_bin_' + name, Xb)
+# # compress
 #
-#     Yr = np.reshape(labels[idxs], 27*len(idxs))
-#     Yb = np.packbits(Yr)
-#     np.save('Y_bin_' + name, Yb)
+# # for (idxs, name) in zip((train_index, validation_index, test_index), ('train', 'validation', 'test')):
+# #     Xr = np.reshape(samples_stacked[idxs], 4*1000*len(idxs))
+# #     Xb = np.packbits(Xr)
+# #     np.save('X_bin_' + name, Xb)
+# #
+# #     Yr = np.reshape(labels[idxs], 27*len(idxs))
+# #     Yb = np.packbits(Yr)
+# #     np.save('Y_bin_' + name, Yb)
+# #
+# #     np.save('headers_' + name, headers[idxs])
 #
-#     np.save('headers_' + name, headers[idxs])
-
 for (idxs, name) in zip((train_index, validation_index, test_index), ('train', 'validation', 'test')):
     np.save(os.path.join(path_out, 'X_' + name), samples_stacked[idxs])
     np.save(os.path.join(path_out, 'Y_' + name), labels[idxs])
     np.save(os.path.join(path_out, 'headers_' + name), headers[idxs])
 
 print('after save')
-
-# np.save(path_out, samples)
+#
+# # np.save(path_out, samples)
+# np.save(os.path.join(path_out, 'X_windows'), samples_stacked)
