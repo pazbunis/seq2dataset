@@ -22,7 +22,7 @@ Output:
 # Input params:
 path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.fasta'
 path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/negative_shuffled.fasta'
-path_out = '/cs/grad/pazbu/dnanet-v3/data/shifts/test_gt0.5/'
+path_out = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/only_positive'
 target_length = 1000
 
 
@@ -152,36 +152,36 @@ for header, seq in middle_subseqs(path_in_positive):
 
 print('number of positives (incl. rev-comps): ', len(samples))
 
-print('converting negatives...')
-c = 0
+# print('converting negatives...')
+# c = 0
 
 # neg_samples = []
 # for header, seq in all_subseqs(path_in_negative):
-for header, seq in middle_subseqs(path_in_negative):
-    samples.append(dna_to_one_hot(seq))
-    headers.append(header)
-    labels.append(np.zeros(27))
-
-    rev_comp_seq = rev_comp(seq)
-    samples.append(dna_to_one_hot(rev_comp_seq))
-    headers.append(header + ' - revcomp')
-    labels.append(np.zeros(27))
-
-    aug_seq = augment(seq)
-    samples.append(dna_to_one_hot(aug_seq))
-    headers.append(header + ' - augmented')
-    labels.append(np.zeros(27))
-
-    rev_comp_aug_seq = rev_comp(aug_seq)
-    samples.append(dna_to_one_hot(rev_comp_aug_seq))
-    headers.append(header + ' - revcomp+augmented')
-    labels.append(np.zeros(27))
-    c += 1
-    if c % 1000 == 0:
-        print(c)
-
-    if c > 55000:
-        break
+# for header, seq in middle_subseqs(path_in_negative):
+#     samples.append(dna_to_one_hot(seq))
+#     headers.append(header)
+#     labels.append(np.zeros(27))
+#
+#     rev_comp_seq = rev_comp(seq)
+#     samples.append(dna_to_one_hot(rev_comp_seq))
+#     headers.append(header + ' - revcomp')
+#     labels.append(np.zeros(27))
+#
+#     aug_seq = augment(seq)
+#     samples.append(dna_to_one_hot(aug_seq))
+#     headers.append(header + ' - augmented')
+#     labels.append(np.zeros(27))
+#
+#     rev_comp_aug_seq = rev_comp(aug_seq)
+#     samples.append(dna_to_one_hot(rev_comp_aug_seq))
+#     headers.append(header + ' - revcomp+augmented')
+#     labels.append(np.zeros(27))
+#     c += 1
+#     if c % 1000 == 0:
+#         print(c)
+#
+#     if c > 30000:
+#         break
 
 # print('number of negatives: ', len(neg_samples))
 #
