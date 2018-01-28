@@ -20,9 +20,10 @@ Output:
 """
 
 # Input params:
-path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.fasta'
+path_in_positive = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_hg19/combined.fa'
 path_in_negative = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/negative_shuffled.fasta'
-path_out = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/only_positive'
+labels_path = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_hg19/combined.labels.tsv'
+path_out = '/cs/grad/pazbu/paz/dev/projects/data/ENCODE_hg19/datasets/liver.thyroid'
 target_length = 1000
 
 
@@ -105,7 +106,7 @@ def augment(seq):
     shift = 0
     pad_char = 'A'
     while shift == 0:
-        shift = random.randint(-20, 20)
+        shift = random.randint(-50, 50)
     if shift < 0:
         aug_seq = abs(shift) * pad_char + seq[:len(seq) - abs(shift)]
     else:
@@ -114,9 +115,10 @@ def augment(seq):
 
 
 import pandas as pd
-df = pd.read_csv(filepath_or_buffer='/cs/grad/pazbu/paz/dev/projects/data/ENCODE_mm10/dataset/positive.labels.tsv', sep='\t')
+df = pd.read_csv(labels_path, sep='\t', header=None)
+df = df[df.columns[3:]]
 label_mat = df.as_matrix()
-label_mat = label_mat[:, 3:]
+label_mat = label_mat.astype(int)
 
 
 print('converting positives...')
@@ -135,15 +137,15 @@ for header, seq in middle_subseqs(path_in_positive):
     headers.append(header + ' - revcomp')
     labels.append(label_mat[c])
 
-    aug_seq = augment(seq)
-    samples.append(dna_to_one_hot(aug_seq))
-    headers.append(header + ' - augmented')
-    labels.append(label_mat[c])
-
-    rev_comp_aug_seq = rev_comp(aug_seq)
-    samples.append(dna_to_one_hot(rev_comp_aug_seq))
-    headers.append(header + ' - revcomp+augmented')
-    labels.append(label_mat[c])
+    # aug_seq = augment(seq)
+    # samples.append(dna_to_one_hot(aug_seq))
+    # headers.append(header + ' - augmented')
+    # labels.append(label_mat[c])
+    #
+    # rev_comp_aug_seq = rev_comp(aug_seq)
+    # samples.append(dna_to_one_hot(rev_comp_aug_seq))
+    # headers.append(header + ' - revcomp+augmented')
+    # labels.append(label_mat[c])
 
     if c % 1000 == 0:
         print(c)
@@ -209,7 +211,7 @@ samples_stacked = samples_stacked[perm]
 headers = headers[perm]
 
 # divide
-train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
+# train_index, validation_index, test_index = np.split(perm, [int(.8*len(perm)), int(0.85*len(perm))])
 
 train_index = []
 validation_index = []
